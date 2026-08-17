@@ -36,7 +36,10 @@ def send_notification(title: str, message: str) -> None:
         url,
         data=message.encode("utf-8"),
         headers={
-            "Title": title,
+            # HTTP headers must be ASCII/Latin-1; ntfy wants non-ASCII title
+            # text RFC 2047-encoded rather than sent raw (emoji would crash
+            # Python's http.client otherwise).
+            "Title": "=?UTF-8?B?" + __import__("base64").b64encode(title.encode("utf-8")).decode("ascii") + "?=",
             "Priority": "urgent",
             "Tags": "rotating_light",
         },
