@@ -54,10 +54,39 @@ def check_reception_tier() -> str:
         browser = p.chromium.launch()
         page = browser.new_page()
         page.goto(EVENT_URL, wait_until="networkidle", timeout=30000)
-        # Give the SPA a moment to render ticket tiers
-        page.wait_for_timeout(2000)
+        page.wait_for_timeout(1500)
+
+        # The ticket tiers aren't on the initial page load — they appear
+        # after tapping a "Get tickets" / "Reserve" style button, same as
+        # in the app. Try clicking anything that looks like that button.
+        clicked = False
+        for pattern in [
+            r"get tickets?", r"buy tickets?", r"reserve", r"tickets?",
+        ]:
+            try:
+                locator = page.get_by_text(re.compile(pattern, re.IGNORECASE)).first
+                if locator.is_visible(timeout=2000):
+                    locator.click(timeout=3000)
+                    clicked = True
+                    break
+            except Exception:
+                continue
+
+        if clicked:
+            page.wait_for_timeout(2500)
 
         content = page.content()
+
+        # If we still can't find the tier text, try scrolling to trigger
+        # any lazy-loaded content, then re-check once more.
+        if TARGET_TIER_TEXT not in content:
+            try:
+                page.mouse.wheel(0, 2000)
+                page.wait_for_timeout(1500)
+                content = page.content()
+            except Exception:
+                pass
+
         browser.close()
 
     # Find the ticket card containing "Opening Reception"
