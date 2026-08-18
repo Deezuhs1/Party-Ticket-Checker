@@ -36,9 +36,6 @@ def send_notification(title: str, message: str) -> None:
         url,
         data=message.encode("utf-8"),
         headers={
-            # HTTP headers must be ASCII/Latin-1; ntfy wants non-ASCII title
-            # text RFC 2047-encoded rather than sent raw (emoji would crash
-            # Python's http.client otherwise).
             "Title": "=?UTF-8?B?" + __import__("base64").b64encode(title.encode("utf-8")).decode("ascii") + "?=",
             "Priority": "urgent",
             "Tags": "rotating_light",
@@ -56,9 +53,6 @@ def check_reception_tier() -> str:
         page.goto(EVENT_URL, wait_until="networkidle", timeout=30000)
         page.wait_for_timeout(1500)
 
-        # The ticket tiers aren't on the initial page load — they appear
-        # after tapping a "Get tickets" / "Reserve" style button, same as
-        # in the app. Try clicking anything that looks like that button.
         clicked = False
         for pattern in [
             r"get tickets?", r"buy tickets?", r"reserve", r"tickets?",
@@ -77,8 +71,6 @@ def check_reception_tier() -> str:
 
         content = page.content()
 
-        # If we still can't find the tier text, try scrolling to trigger
-        # any lazy-loaded content, then re-check once more.
         if TARGET_TIER_TEXT not in content:
             try:
                 page.mouse.wheel(0, 2000)
@@ -87,14 +79,19 @@ def check_reception_tier() -> str:
             except Exception:
                 pass
 
+        # Always save a screenshot for debugging — lets us see exactly
+        # what the automated browser is looking at.
+        try:
+            page.screenshot(path="debug_screenshot.png", full_page=True)
+        except Exception:
+            pass
+
         browser.close()
 
-    # Find the ticket card containing "Opening Reception"
     idx = content.find(TARGET_TIER_TEXT)
     if idx == -1:
         return "not_found"
 
-    # Look at a window of text after the tier name for "Sold out"
     window = content[idx: idx + 1500]
     if re.search(r"sold\s*out", window, re.IGNORECASE):
         return "sold_out"
@@ -113,7 +110,6 @@ def main() -> None:
         )
         print("Notification sent.")
     elif status == "not_found":
-        # Page structure may have changed; alert so you can check manually.
         send_notification(
             "⚠️ Ticket checker needs a look",
             "Couldn't find the Opening Reception tier on the page — "
